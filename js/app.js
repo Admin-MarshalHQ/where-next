@@ -102,13 +102,67 @@ const App = {
   renderProgressBar() {
     const progress = this.getProgress();
     if (!progress) return '';
+    const canGoBack = this.canGoBack();
     return `
       <div class="progress-container">
-        <div class="progress-label">${progress.label}</div>
+        <div class="progress-top-row">
+          ${canGoBack ? '<button class="back-btn" onclick="App.goBack()">← Back</button>' : '<span></span>'}
+          <div class="progress-label">${progress.label}</div>
+        </div>
         <div class="progress-bar-bg">
           <div class="progress-bar-fill" style="width: ${progress.percent}%"></div>
         </div>
       </div>`;
+  },
+
+  canGoBack() {
+    const s = this.state.screen;
+    if (s === 'round1') return this.state.currentPairIndex > 0;
+    if (s === 'round2') return true; // back to round 1
+    if (s === 'round3') return true; // back to prev experience or round 2
+    if (s === 'round4') return true; // back to round 3
+    if (s === 'round5') return true; // back to round 4
+    return false;
+  },
+
+  goBack() {
+    if (this.state.transitioning) return;
+    const s = this.state.screen;
+
+    if (s === 'round1' && this.state.currentPairIndex > 0) {
+      // Undo last This or That choice
+      this.state.currentPairIndex--;
+      this.state.responses.thisOrThat.pop();
+      this.render();
+      requestAnimationFrame(() => {
+        const screen = this.container.querySelector('.screen:not(.active)');
+        if (screen) screen.classList.add('active');
+      });
+    } else if (s === 'round2') {
+      // Go back to last pair in Round 1
+      this.state.currentPairIndex = THIS_OR_THAT_PAIRS.length - 1;
+      this.state.responses.thisOrThat.pop();
+      this.navigate('round1');
+    } else if (s === 'round3' && this.state.currentExpIndex > 0) {
+      // Undo last Deal or No Deal
+      this.state.currentExpIndex--;
+      this.state.responses.dealOrNoDeal.pop();
+      this.render();
+      requestAnimationFrame(() => {
+        const screen = this.container.querySelector('.screen:not(.active)');
+        if (screen) screen.classList.add('active');
+      });
+    } else if (s === 'round3' && this.state.currentExpIndex === 0) {
+      // Go back to Round 2
+      this.navigate('round2');
+    } else if (s === 'round4') {
+      // Go back to last experience in Round 3
+      this.state.currentExpIndex = EXPERIENCES.length - 1;
+      this.state.responses.dealOrNoDeal.pop();
+      this.navigate('round3');
+    } else if (s === 'round5') {
+      this.navigate('round4');
+    }
   },
 
   // ============================================

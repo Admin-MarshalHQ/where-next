@@ -49,7 +49,7 @@ const App = {
     setTimeout(() => {
       this.render();
       this.state.transitioning = false;
-    }, currentScreen ? 300 : 0);
+    }, currentScreen ? 200 : 0);
   },
 
   // --- Main Render ---
@@ -157,11 +157,13 @@ const App = {
     return `
       <div class="screen name-entry">
         <div class="landing-icon animate-bounce">${isRebecca ? '💕' : '🗺️'}</div>
-        <h2>${isRebecca ? 'Hey Bec!' : 'Alright Sam'}</h2>
-        <p>${isRebecca
-          ? "This'll take about 10 mins. Just go with your gut — there's no wrong answers. I've already done mine, so we can compare after!"
-          : "Quick fire rounds. Be honest, no peeking at Rebecca's answers!"
-        }</p>
+        <h2>${isRebecca ? 'Hey Rebecca!' : 'Alright Sam'}</h2>
+        ${isRebecca ? `
+          <p>Sam made this little game for the two of you. There are 5 quick rounds — things like picking between travel styles, splitting a budget, and rating experiences.</p>
+          <p style="margin-top:8px; opacity:0.7; font-size:13px;">It takes about 10 mins. Just go with your gut — there are no wrong answers. Once you're both done, you'll see how your travel styles compare!</p>
+        ` : `
+          <p>Quick fire rounds. Be honest, no peeking at Rebecca's answers!</p>
+        `}
         <button class="btn btn-primary mt-16" onclick="App.navigate('round1')">Let's Go ✨</button>
       </div>`;
   },

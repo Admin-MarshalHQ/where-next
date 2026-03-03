@@ -928,12 +928,14 @@ const App = {
   saveGame() {
     const key = `wherenext_${this.state.gameId}`;
     const playerKey = `player_${this.state.playerNumber}`;
+    // Strip functions from persona (Firestore can't store them)
+    const { test, ...personaSafe } = this.state.persona;
     const playerData = {
       name: this.state.playerName,
       completed: true,
       responses: this.state.responses,
       scores: this.state.scores,
-      persona: this.state.persona
+      persona: personaSafe
     };
 
     // Always save to localStorage as fallback

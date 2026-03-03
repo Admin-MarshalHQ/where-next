@@ -1016,7 +1016,7 @@ const App = {
 
         // Check if the other player has now completed
         const otherKey = this.state.playerNumber === 1 ? 'player_2' : 'player_1';
-        if (data[otherKey]?.completed && this.state.screen === 'results') {
+        if (data[otherKey]?.completed && this.state.screen === 'results' && !this.state.transitioning) {
           this.render();
           requestAnimationFrame(() => {
             const screen = this.container.querySelector('.screen:not(.active)');

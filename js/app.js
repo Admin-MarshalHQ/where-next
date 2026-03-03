@@ -188,20 +188,24 @@ const App = {
     this.state.currentPairIndex = 0;
     this.state.currentExpIndex = 0;
 
-    // Check if this player already completed (await Firebase)
-    const existing = await this.loadGame(this.state.gameId);
-    const playerKey = `player_${this.state.playerNumber}`;
-    if (existing && existing[playerKey]?.completed) {
-      // Already played — go straight to results
-      this.state.responses = existing[playerKey].responses;
-      this.state.scores = existing[playerKey].scores;
-      this.state.persona = existing[playerKey].persona;
+    try {
+      // Check if this player already completed (await Firebase)
+      const existing = await this.loadGame(this.state.gameId);
+      const playerKey = `player_${this.state.playerNumber}`;
+      if (existing && existing[playerKey]?.completed) {
+        // Already played — go straight to results
+        this.state.responses = existing[playerKey].responses;
+        this.state.scores = existing[playerKey].scores;
+        this.state.persona = existing[playerKey].persona;
 
-      // Re-sync to Firebase in case it was missed (e.g. permissions were wrong earlier)
-      this.saveGame();
+        // Re-sync to Firebase in case it was missed (e.g. permissions were wrong earlier)
+        this.saveGame();
 
-      this.navigate('results');
-      return;
+        this.navigate('results');
+        return;
+      }
+    } catch (e) {
+      console.warn('pickPlayer load error:', e);
     }
 
     this.navigate('intro');
@@ -929,7 +933,8 @@ const App = {
     const key = `wherenext_${this.state.gameId}`;
     const playerKey = `player_${this.state.playerNumber}`;
     // Strip functions from persona (Firestore can't store them)
-    const { test, ...personaSafe } = this.state.persona;
+    const personaObj = this.state.persona || {};
+    const { test, ...personaSafe } = personaObj;
     const playerData = {
       name: this.state.playerName,
       completed: true,

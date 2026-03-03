@@ -49,7 +49,7 @@ const App = {
     setTimeout(() => {
       this.render();
       this.state.transitioning = false;
-    }, currentScreen ? 200 : 0);
+    }, currentScreen ? 250 : 0);
   },
 
   // --- Main Render ---
@@ -182,6 +182,9 @@ const App = {
   },
 
   async pickPlayer(name) {
+    if (this.state.transitioning) return; // guard against double-tap
+    this.state.transitioning = true;
+
     this.state.gameId = 'sam-and-rebecca';
     this.state.playerName = name;
     this.state.playerNumber = name === 'Rebecca' ? 1 : 2;
@@ -201,6 +204,7 @@ const App = {
         // Re-sync to Firebase in case it was missed (e.g. permissions were wrong earlier)
         this.saveGame();
 
+        this.state.transitioning = false;
         this.navigate('results');
         return;
       }
@@ -208,6 +212,7 @@ const App = {
       console.warn('pickPlayer load error:', e);
     }
 
+    this.state.transitioning = false;
     this.navigate('intro');
   },
 
@@ -269,8 +274,9 @@ const App = {
     const pair = THIS_OR_THAT_PAIRS[this.state.currentPairIndex];
     this.state.responses.thisOrThat.push({ pairId: pair.id, choice });
 
-    // Animate cards
+    // Animate cards (guard against DOM being cleared by a concurrent re-render)
     const wrapper = document.getElementById('choicesWrapper');
+    if (!wrapper) { setTimeout(() => { this.state.currentPairIndex++; this.render(); }, 0); return; }
     const cards = wrapper.querySelectorAll('.choice-card');
 
     cards.forEach((card, i) => {
@@ -420,8 +426,9 @@ const App = {
     const exp = EXPERIENCES[this.state.currentExpIndex];
     this.state.responses.dealOrNoDeal.push({ experienceId: exp.id, rating });
 
-    // Animate card exit
+    // Animate card exit (guard against DOM being cleared by a concurrent re-render)
     const card = document.getElementById('expCard');
+    if (!card) { setTimeout(() => { this.state.currentExpIndex++; this.render(); }, 0); return; }
     const exitClass = rating === 'must' ? 'exit-must' : rating === 'cool' ? 'exit-cool' : 'exit-skip';
     card.classList.add(exitClass);
 
@@ -543,7 +550,12 @@ const App = {
     this.state.responses.wildcards[id] = value;
   },
 
-  // Ground rules management
+  // --- Utilities ---
+  safeParseJSON(str, fallback = null) {
+    try { return JSON.parse(str); }
+    catch (e) { console.warn('JSON parse failed:', e); return fallback; }
+  },
+
   escapeHtml(str) {
     return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   },
@@ -581,13 +593,13 @@ const App = {
   // ============================================
   // FINISH & CALCULATE
   // ============================================
-  finishGame() {
+  async finishGame() {
     // Calculate scores
     this.state.scores = PersonaEngine.calculateScores(this.state.responses);
     this.state.persona = PersonaEngine.determinePersona(this.state.scores);
 
-    // Save to localStorage
-    this.saveGame();
+    // Save to localStorage + Firebase (await ensures Firebase write completes)
+    await this.saveGame();
 
     this.navigate('results');
   },
@@ -929,7 +941,7 @@ const App = {
   // ============================================
   // DATA PERSISTENCE (Firebase + localStorage fallback)
   // ============================================
-  saveGame() {
+  async saveGame() {
     const key = `wherenext_${this.state.gameId}`;
     const playerKey = `player_${this.state.playerNumber}`;
     // Strip functions from persona (Firestore can't store them)
@@ -944,13 +956,13 @@ const App = {
     };
 
     // Always save to localStorage as fallback
-    let gameData = JSON.parse(localStorage.getItem(key) || '{}');
+    let gameData = this.safeParseJSON(localStorage.getItem(key), {});
     gameData[playerKey] = playerData;
     localStorage.setItem(key, JSON.stringify(gameData));
 
     // Also save to Firebase if available
     if (FirebaseService.enabled) {
-      FirebaseService.savePlayer(this.state.gameId, this.state.playerNumber, playerData);
+      await FirebaseService.savePlayer(this.state.gameId, this.state.playerNumber, playerData);
     }
   },
 
@@ -968,13 +980,13 @@ const App = {
 
     // Fallback to localStorage
     const key = `wherenext_${gameId}`;
-    return JSON.parse(localStorage.getItem(key) || 'null');
+    return this.safeParseJSON(localStorage.getItem(key), null);
   },
 
   getOtherPlayer() {
     // Synchronous localStorage check (for immediate rendering)
     const key = `wherenext_${this.state.gameId}`;
-    const gameData = JSON.parse(localStorage.getItem(key) || 'null');
+    const gameData = this.safeParseJSON(localStorage.getItem(key), null);
     if (!gameData) return null;
 
     const otherKey = this.state.playerNumber === 1 ? 'player_2' : 'player_1';
@@ -992,11 +1004,13 @@ const App = {
       const key = `wherenext_${this.state.gameId}`;
       localStorage.setItem(key, JSON.stringify(fbData));
       // Re-render if we're on results and other player is now available
-      if (this.state.screen === 'results') {
+      if (this.state.screen === 'results' && !this._otherPlayerRenderPending) {
+        this._otherPlayerRenderPending = true;
         this.render();
         requestAnimationFrame(() => {
           const screen = this.container.querySelector('.screen:not(.active)');
           if (screen) screen.classList.add('active');
+          this._otherPlayerRenderPending = false;
         });
       }
     }
@@ -1006,6 +1020,7 @@ const App = {
   // REAL-TIME LISTENER (cross-device sync)
   // ============================================
   _firebaseUnsubscribe: null,
+  _otherPlayerRenderPending: false,
 
   startListeningForOtherPlayer() {
     // Stop any existing listener
@@ -1021,11 +1036,13 @@ const App = {
 
         // Check if the other player has now completed
         const otherKey = this.state.playerNumber === 1 ? 'player_2' : 'player_1';
-        if (data[otherKey]?.completed && this.state.screen === 'results' && !this.state.transitioning) {
+        if (data[otherKey]?.completed && this.state.screen === 'results' && !this.state.transitioning && !this._otherPlayerRenderPending) {
+          this._otherPlayerRenderPending = true;
           this.render();
           requestAnimationFrame(() => {
             const screen = this.container.querySelector('.screen:not(.active)');
             if (screen) screen.classList.add('active');
+            this._otherPlayerRenderPending = false;
           });
         }
       });
@@ -1081,7 +1098,10 @@ const App = {
 const originalRender = App.render.bind(App);
 App.render = function() {
   originalRender();
-  setTimeout(() => App.afterRender(), 100);
+  const screenAtRender = App.state.screen;
+  setTimeout(() => {
+    if (App.state.screen === screenAtRender) App.afterRender();
+  }, 100);
 };
 
 // Boot

@@ -147,13 +147,20 @@ const PersonaEngine = {
 
   // Generate comparison between two players
   generateComparison(player1, player2) {
+    // Guard against missing data
+    if (!player1?.scores || !player2?.scores) {
+      return { alignments: [], differences: [], compromises: [], combinedMustDos: [], budgetAlignments: [], budgetDifferences: [] };
+    }
+
     const alignments = [];
     const differences = [];
     const compromises = [];
 
     // Compare dimension scores
     DIMENSIONS.forEach(dim => {
-      const diff = Math.abs(player1.scores[dim] - player2.scores[dim]);
+      const s1 = player1.scores[dim] || 0;
+      const s2 = player2.scores[dim] || 0;
+      const diff = Math.abs(s1 - s2);
       const label = dim.charAt(0).toUpperCase() + dim.slice(1);
       if (diff <= 2) {
         alignments.push({
@@ -161,8 +168,8 @@ const PersonaEngine = {
           message: `You both value ${label.toLowerCase()} about the same!`
         });
       } else {
-        const who1 = player1.scores[dim] > player2.scores[dim] ? player1.name : player2.name;
-        const who2 = player1.scores[dim] > player2.scores[dim] ? player2.name : player1.name;
+        const who1 = s1 > s2 ? player1.name : player2.name;
+        const who2 = s1 > s2 ? player2.name : player1.name;
         differences.push({
           dimension: dim,
           message: `${who1} wants more ${label.toLowerCase()} than ${who2}`

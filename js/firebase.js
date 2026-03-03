@@ -90,6 +90,8 @@ const FirebaseService = {
         if (doc.exists) {
           callback(doc.data());
         }
+      }, error => {
+        console.warn('Firestore listener error:', error);
       });
   }
 };

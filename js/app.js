@@ -196,6 +196,10 @@ const App = {
       this.state.responses = existing[playerKey].responses;
       this.state.scores = existing[playerKey].scores;
       this.state.persona = existing[playerKey].persona;
+
+      // Re-sync to Firebase in case it was missed (e.g. permissions were wrong earlier)
+      this.saveGame();
+
       this.navigate('results');
       return;
     }

@@ -552,6 +552,7 @@ const App = {
 
   // --- Utilities ---
   safeParseJSON(str, fallback = null) {
+    if (str == null) return fallback;
     try { return JSON.parse(str); }
     catch (e) { console.warn('JSON parse failed:', e); return fallback; }
   },
@@ -599,7 +600,11 @@ const App = {
     this.state.persona = PersonaEngine.determinePersona(this.state.scores);
 
     // Save to localStorage + Firebase (await ensures Firebase write completes)
-    await this.saveGame();
+    try {
+      await this.saveGame();
+    } catch (e) {
+      console.warn('saveGame error in finishGame:', e);
+    }
 
     this.navigate('results');
   },

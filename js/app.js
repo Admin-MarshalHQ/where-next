@@ -173,7 +173,7 @@ const App = {
       <div class="screen landing">
         <div class="landing-icon">🌍</div>
         <h1>Where Next?</h1>
-        <p class="subtitle">A little game I made for us. Play through a few quick rounds and let's see how our travel styles match up...</p>
+        <p class="subtitle">A little game I made for us 💛 Play through on your phone whenever — I'll do mine. Once we've both finished, we'll see how our travel styles line up.</p>
         <div class="btn-group">
           <button class="btn btn-coral" onclick="App.pickPlayer('Rebecca')">I'm Rebecca 💃</button>
           <button class="btn btn-primary" onclick="App.pickPlayer('Sam')">I'm Sam 🎒</button>
@@ -725,12 +725,16 @@ const App = {
       </div>`;
   },
 
-  showToast(msg) {
+  _toastTimer: null,
+  showToast(msg, type = 'info', duration) {
     const toast = document.getElementById('toast');
     if (!toast) return;
     toast.textContent = msg;
+    toast.classList.toggle('toast--error', type === 'error');
     toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 2000);
+    clearTimeout(this._toastTimer);
+    const hideAfter = duration ?? (type === 'error' ? 5000 : 2000);
+    this._toastTimer = setTimeout(() => toast.classList.remove('show'), hideAfter);
   },
 
   // ============================================

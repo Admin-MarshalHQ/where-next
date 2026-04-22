@@ -8,14 +8,18 @@
 const FirebaseService = {
   db: null,
   enabled: false,
+  _syncErrorShown: false,
+
+  _notifyUser(msg, type = 'error') {
+    if (typeof App !== 'undefined' && typeof App.showToast === 'function') {
+      App.showToast(msg, type);
+    }
+  },
 
   // Initialize Firebase — replace with your own config
   init() {
     // Check if Firebase SDK is loaded
-    if (typeof firebase === 'undefined') {
-      console.log('Firebase SDK not loaded — using localStorage only');
-      return;
-    }
+    if (typeof firebase === 'undefined') return;
 
     try {
       // =============================================
@@ -32,15 +36,11 @@ const FirebaseService = {
       };
       // =============================================
 
-      if (firebaseConfig.apiKey === "YOUR_API_KEY") {
-        console.log('Firebase not configured — using localStorage only');
-        return;
-      }
+      if (firebaseConfig.apiKey === "YOUR_API_KEY") return;
 
       firebase.initializeApp(firebaseConfig);
       this.db = firebase.firestore();
       this.enabled = true;
-      console.log('Firebase connected!');
     } catch (e) {
       console.warn('Firebase init failed:', e);
     }
@@ -59,9 +59,13 @@ const FirebaseService = {
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
 
-      console.log('Saved to Firestore');
+      this._syncErrorShown = false;
     } catch (e) {
       console.warn('Firestore save failed:', e);
+      if (!this._syncErrorShown) {
+        this._syncErrorShown = true;
+        this._notifyUser("Couldn't sync — your progress is saved on this device.");
+      }
     }
   },
 
@@ -77,6 +81,7 @@ const FirebaseService = {
       return null;
     } catch (e) {
       console.warn('Firestore load failed:', e);
+      this._notifyUser("Couldn't reach the game server. You can still play offline.");
       return null;
     }
   },
@@ -92,6 +97,7 @@ const FirebaseService = {
         }
       }, error => {
         console.warn('Firestore listener error:', error);
+        this._notifyUser('Lost connection to the server — refresh to reconnect.');
       });
   }
 };

@@ -1123,7 +1123,7 @@ canvas.radar-chart {
   .screen { padding-bottom: env(safe-area-inset-bottom); }
 }
 
-/* Copied toast */
+/* Toast — used for copy confirmations and Firebase sync errors */
 .toast {
   position: fixed;
   bottom: 40px;
@@ -1139,9 +1139,17 @@ canvas.radar-chart {
   transition: all 0.3s ease;
   z-index: 1000;
   pointer-events: none;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  text-align: center;
+  line-height: 1.4;
 }
 
 .toast.show {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+.toast.toast--error {
+  background: var(--danger);
 }

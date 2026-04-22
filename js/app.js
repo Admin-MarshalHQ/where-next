@@ -827,12 +827,204 @@ const App = {
           </div>
 
           ${this.renderComparisonGroundRules(player1, player2)}
+
+          ${this.renderDeepAnalysis(player1, player2)}
         </div>
 
         <div class="screen-footer screen-footer-dark">
           <button class="btn btn-secondary" onclick="App.navigate('results')">Back to My Results</button>
         </div>
       </div>`;
+  },
+
+  renderDeepAnalysis(player1, player2) {
+    const p1Name = player1.name;
+    const p2Name = player2.name;
+    const p1Initial = p1Name.charAt(0).toUpperCase();
+    const p2Initial = p2Name.charAt(0).toUpperCase();
+    const esc = s => this.escapeHtml(s);
+
+    // ---- Score comparison ----
+    const scoreRows = DIMENSIONS.map(dim => {
+      const s1 = Number(player1.scores?.[dim] ?? 0);
+      const s2 = Number(player2.scores?.[dim] ?? 0);
+      const gap = Math.abs(s1 - s2);
+      const gapClass = gap <= 2 ? 'deep-gap-small' : gap <= 4 ? 'deep-gap-med' : 'deep-gap-large';
+      const label = dim.charAt(0).toUpperCase() + dim.slice(1);
+      return `<div class="deep-score-row">
+        <div class="deep-score-label"><span>${label}</span><span class="deep-score-gap ${gapClass}">Δ ${gap.toFixed(1)}</span></div>
+        <div class="deep-score-bars">
+          <div class="deep-score-player"><span class="deep-tag p1">${p1Initial}</span><div class="deep-bar"><div class="deep-bar-fill p1-fill" style="width:${s1 * 10}%"></div></div><span class="deep-val">${s1.toFixed(1)}</span></div>
+          <div class="deep-score-player"><span class="deep-tag p2">${p2Initial}</span><div class="deep-bar"><div class="deep-bar-fill p2-fill" style="width:${s2 * 10}%"></div></div><span class="deep-val">${s2.toFixed(1)}</span></div>
+        </div>
+      </div>`;
+    }).join('');
+
+    // ---- This or That ----
+    const tot1 = player1.responses?.thisOrThat || [];
+    const tot2 = player2.responses?.thisOrThat || [];
+    const totMap1 = new Map(tot1.map(r => [r.pairId, r.choice]));
+    const totMap2 = new Map(tot2.map(r => [r.pairId, r.choice]));
+    const matches = [], splits = [];
+    THIS_OR_THAT_PAIRS.forEach(pair => {
+      const c1 = totMap1.get(pair.id);
+      const c2 = totMap2.get(pair.id);
+      if (!c1 || !c2) return;
+      const opt1 = c1 === 'A' ? pair.optionA : pair.optionB;
+      const opt2 = c2 === 'A' ? pair.optionA : pair.optionB;
+      if (c1 === c2) matches.push({ pair, option: opt1 });
+      else splits.push({ pair, opt1, opt2 });
+    });
+
+    const matchesHtml = matches.map(m => `<div class="deep-tot-row deep-tot-match">
+      <div class="deep-tot-reveals">${esc(m.pair.reveals)}</div>
+      <div class="deep-tot-pick"><span class="deep-tot-emoji">${m.option.emoji}</span> ${esc(m.option.title)}</div>
+    </div>`).join('');
+
+    const splitsHtml = splits.map(s => `<div class="deep-tot-row deep-tot-split">
+      <div class="deep-tot-reveals">${esc(s.pair.reveals)}</div>
+      <div class="deep-tot-picks">
+        <div class="deep-tot-pick"><span class="deep-tag p1">${p1Initial}</span> <span class="deep-tot-emoji">${s.opt1.emoji}</span> ${esc(s.opt1.title)}</div>
+        <div class="deep-tot-pick"><span class="deep-tag p2">${p2Initial}</span> <span class="deep-tot-emoji">${s.opt2.emoji}</span> ${esc(s.opt2.title)}</div>
+      </div>
+    </div>`).join('');
+
+    // ---- Budget ----
+    const bc1 = player1.responses?.budgetCoins || {};
+    const bc2 = player2.responses?.budgetCoins || {};
+    const hasBudget = Object.values(bc1).some(v => v > 0) || Object.values(bc2).some(v => v > 0);
+    const budgetRows = hasBudget ? BUDGET_CATEGORIES.map(cat => {
+      const v1 = bc1[cat.id] || 0;
+      const v2 = bc2[cat.id] || 0;
+      return `<div class="deep-budget-row">
+        <div class="deep-budget-label">${cat.emoji} ${esc(cat.title)}</div>
+        <div class="deep-score-bars">
+          <div class="deep-score-player"><span class="deep-tag p1">${p1Initial}</span><div class="deep-bar"><div class="deep-bar-fill p1-fill" style="width:${v1 * 10}%"></div></div><span class="deep-val">${v1}</span></div>
+          <div class="deep-score-player"><span class="deep-tag p2">${p2Initial}</span><div class="deep-bar"><div class="deep-bar-fill p2-fill" style="width:${v2 * 10}%"></div></div><span class="deep-val">${v2}</span></div>
+        </div>
+      </div>`;
+    }).join('') : '';
+
+    // ---- Sliders ----
+    const sl1 = player1.responses?.sliders || {};
+    const sl2 = player2.responses?.sliders || {};
+    const sliderRows = SLIDER_CONFIGS.map(sc => {
+      const v1 = sl1[sc.id];
+      const v2 = sl2[sc.id];
+      if (v1 === undefined || v2 === undefined) return '';
+      const gap = Math.abs(v1 - v2);
+      const gapClass = gap > 0.3 ? 'deep-slider-wide' : gap > 0.15 ? 'deep-slider-mid' : 'deep-slider-close';
+      return `<div class="deep-slider-row ${gapClass}">
+        <div class="deep-slider-header">
+          <span class="deep-slider-emoji">${sc.emoji}</span>
+          <span class="deep-slider-title">${esc(sc.label)}</span>
+          ${gap > 0.3 ? `<span class="deep-slider-gap-tag">wide gap</span>` : ''}
+        </div>
+        <div class="deep-slider-labels">
+          <span>${esc(sc.leftLabel)}</span>
+          <span>${esc(sc.rightLabel)}</span>
+        </div>
+        <div class="deep-slider-track">
+          <div class="deep-slider-marker p1" style="left:${v1 * 100}%">${p1Initial}</div>
+          <div class="deep-slider-marker p2" style="left:${v2 * 100}%">${p2Initial}</div>
+        </div>
+      </div>`;
+    }).join('');
+
+    // ---- Deal or No Deal categorized ----
+    const dnd1 = player1.responses?.dealOrNoDeal || [];
+    const dnd2 = player2.responses?.dealOrNoDeal || [];
+    const dndMap1 = new Map(dnd1.map(r => [r.experienceId, r.rating]));
+    const dndMap2 = new Map(dnd2.map(r => [r.experienceId, r.rating]));
+    const bothMust = [], bothCool = [], bothSkip = [], p1Cares = [], p2Cares = [];
+    const rank = { must: 2, cool: 1, skip: 0 };
+    EXPERIENCES.forEach(exp => {
+      const r1 = dndMap1.get(exp.id);
+      const r2 = dndMap2.get(exp.id);
+      if (!r1 || !r2) return;
+      if (r1 === 'must' && r2 === 'must') bothMust.push(exp);
+      else if (r1 === 'cool' && r2 === 'cool') bothCool.push(exp);
+      else if (r1 === 'skip' && r2 === 'skip') bothSkip.push(exp);
+      else if (rank[r1] > rank[r2]) p1Cares.push({ exp, r1, r2 });
+      else if (rank[r2] > rank[r1]) p2Cares.push({ exp, r1, r2 });
+    });
+    const ratingEmoji = r => r === 'must' ? '💪' : r === 'cool' ? '👌' : '🚫';
+    const expList = arr => arr.map(x => `<div class="comparison-item">${x.emoji} ${esc(x.title)}</div>`).join('');
+    const careList = arr => arr.map(x => `<div class="comparison-item">${x.exp.emoji} ${esc(x.exp.title)} <span class="deep-dond-tag">${p1Initial}:${ratingEmoji(x.r1)} · ${p2Initial}:${ratingEmoji(x.r2)}</span></div>`).join('');
+
+    let dondHtml = '';
+    if (bothMust.length) dondHtml += `<div class="deep-dond-block deep-dond-must"><div class="deep-dond-title">💪 Both must-do (${bothMust.length})</div>${expList(bothMust)}</div>`;
+    if (p1Cares.length) dondHtml += `<div class="deep-dond-block"><div class="deep-dond-title">🔸 ${esc(p1Name)} cares more (${p1Cares.length})</div>${careList(p1Cares)}</div>`;
+    if (p2Cares.length) dondHtml += `<div class="deep-dond-block"><div class="deep-dond-title">🔹 ${esc(p2Name)} cares more (${p2Cares.length})</div>${careList(p2Cares)}</div>`;
+    if (bothCool.length) dondHtml += `<div class="deep-dond-block deep-dond-cool"><div class="deep-dond-title">👌 Both "could be cool" (${bothCool.length})</div>${expList(bothCool)}</div>`;
+    if (bothSkip.length) dondHtml += `<div class="deep-dond-block deep-dond-skip"><div class="deep-dond-title">🚫 Both skip (${bothSkip.length})</div>${expList(bothSkip)}</div>`;
+
+    // ---- Wildcards ----
+    const wc1 = player1.responses?.wildcards || {};
+    const wc2 = player2.responses?.wildcards || {};
+    const wildcardRows = WILDCARD_QUESTIONS.map(q => {
+      const a1 = (wc1[q.id] || '').trim();
+      const a2 = (wc2[q.id] || '').trim();
+      if (!a1 && !a2) return '';
+      return `<div class="deep-wildcard">
+        <div class="deep-wildcard-q">${q.emoji} ${esc(q.question)}</div>
+        <div class="deep-wildcard-a">
+          <div class="deep-wildcard-who p1">${esc(p1Name)}</div>
+          <div class="deep-wildcard-text">${a1 ? `"${esc(a1)}"` : '<em class="deep-blank">No answer</em>'}</div>
+        </div>
+        <div class="deep-wildcard-a">
+          <div class="deep-wildcard-who p2">${esc(p2Name)}</div>
+          <div class="deep-wildcard-text">${a2 ? `"${esc(a2)}"` : '<em class="deep-blank">No answer</em>'}</div>
+        </div>
+      </div>`;
+    }).join('');
+
+    // ---- Build full HTML ----
+    const totalTot = Math.min(tot1.length, tot2.length);
+    return `
+      <div class="deep-divider">
+        <span>📖 The Full Breakdown</span>
+      </div>
+
+      <div class="comparison-section">
+        <div class="comparison-section-title deep-title-scores">📊 Travel DNA Scores</div>
+        <div class="deep-legend">
+          <span class="deep-legend-item"><span class="deep-tag p1">${p1Initial}</span> ${esc(p1Name)}</span>
+          <span class="deep-legend-item"><span class="deep-tag p2">${p2Initial}</span> ${esc(p2Name)}</span>
+        </div>
+        ${scoreRows}
+      </div>
+
+      ${matchesHtml ? `<div class="comparison-section">
+        <div class="comparison-section-title align">🤝 This-or-That matches (${matches.length}/${totalTot})</div>
+        ${matchesHtml}
+      </div>` : ''}
+
+      ${splitsHtml ? `<div class="comparison-section">
+        <div class="comparison-section-title differ">🔀 This-or-That splits (${splits.length})</div>
+        ${splitsHtml}
+      </div>` : ''}
+
+      ${budgetRows ? `<div class="comparison-section">
+        <div class="comparison-section-title deep-title-budget">💰 Budget allocation (coins out of 10)</div>
+        ${budgetRows}
+      </div>` : ''}
+
+      ${sliderRows ? `<div class="comparison-section">
+        <div class="comparison-section-title deep-title-sliders">🎚️ Pace &amp; style sliders</div>
+        ${sliderRows}
+      </div>` : ''}
+
+      ${dondHtml ? `<div class="comparison-section">
+        <div class="comparison-section-title deep-title-dond">🎯 Experience wishlist breakdown</div>
+        ${dondHtml}
+      </div>` : ''}
+
+      ${wildcardRows ? `<div class="comparison-section">
+        <div class="comparison-section-title deep-title-wildcard">💭 In your own words</div>
+        ${wildcardRows}
+      </div>` : ''}
+    `;
   },
 
   renderComparisonGroundRules(player1, player2) {

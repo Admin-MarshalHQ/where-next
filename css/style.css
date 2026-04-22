@@ -1153,3 +1153,20 @@ canvas.radar-chart {
 .toast.toast--error {
   background: var(--danger);
 }
+
+/* Version chip — top-right, visible on both light & dark backgrounds */
+.version-tag {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(255, 255, 255, 0.75);
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-family: ui-monospace, Menlo, monospace;
+  letter-spacing: 0.5px;
+  z-index: 999;
+  pointer-events: none;
+  user-select: none;
+}

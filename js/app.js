@@ -1005,24 +1005,15 @@ const App = {
     return other;
   },
 
-  // Check Firebase for other player (async)
+  // Check Firebase for other player (async fallback for the live listener)
   async checkForOtherPlayer() {
     if (!FirebaseService.enabled) return;
     const fbData = await FirebaseService.loadGame(this.state.gameId);
-    if (fbData) {
-      const key = `wherenext_${this.state.gameId}`;
-      localStorage.setItem(key, JSON.stringify(fbData));
-      // Re-render if we're on results and other player is now available
-      if (this.state.screen === 'results' && !this._otherPlayerRenderPending) {
-        this._otherPlayerRenderPending = true;
-        this.render();
-        requestAnimationFrame(() => {
-          const screen = this.container.querySelector('.screen:not(.active)');
-          if (screen) screen.classList.add('active');
-          this._otherPlayerRenderPending = false;
-        });
-      }
-    }
+    if (!fbData) return;
+
+    const key = `wherenext_${this.state.gameId}`;
+    localStorage.setItem(key, JSON.stringify(fbData));
+    this._maybeRerenderForOtherPlayer(fbData);
   },
 
   // ============================================
@@ -1030,34 +1021,29 @@ const App = {
   // ============================================
   _firebaseUnsubscribe: null,
   _otherPlayerRenderPending: false,
+  _renderedOtherComplete: false,
 
   startListeningForOtherPlayer() {
-    // Stop any existing listener
-    this.stopListeningForOtherPlayer();
+    // If we already have an active listener for this results visit, don't
+    // re-subscribe — each new subscription fires its snapshot synchronously
+    // with the cached doc, which re-renders, which calls afterRender, which
+    // re-enters here → infinite loop.
+    if (this._firebaseUnsubscribe) return;
 
-    // Try real-time listener first
+    // Seed the "already rendered complete" flag from what's currently on
+    // screen, so we only re-render on an actual transition.
+    this._renderedOtherComplete = !!this.getOtherPlayer();
+
     if (FirebaseService.enabled) {
       this._firebaseUnsubscribe = FirebaseService.onGameUpdate(this.state.gameId, (data) => {
         if (!data) return;
-        // Cache to localStorage
         const key = `wherenext_${this.state.gameId}`;
         localStorage.setItem(key, JSON.stringify(data));
-
-        // Check if the other player has now completed
-        const otherKey = this.state.playerNumber === 1 ? 'player_2' : 'player_1';
-        if (data[otherKey]?.completed && this.state.screen === 'results' && !this.state.transitioning && !this._otherPlayerRenderPending) {
-          this._otherPlayerRenderPending = true;
-          this.render();
-          requestAnimationFrame(() => {
-            const screen = this.container.querySelector('.screen:not(.active)');
-            if (screen) screen.classList.add('active');
-            this._otherPlayerRenderPending = false;
-          });
-        }
+        this._maybeRerenderForOtherPlayer(data);
       });
     }
 
-    // Also do an immediate async check as fallback
+    // One-shot fallback in case the listener is slow or disabled.
     this.checkForOtherPlayer();
   },
 
@@ -1066,6 +1052,25 @@ const App = {
       this._firebaseUnsubscribe();
       this._firebaseUnsubscribe = null;
     }
+    this._renderedOtherComplete = false;
+  },
+
+  _maybeRerenderForOtherPlayer(data) {
+    const otherKey = this.state.playerNumber === 1 ? 'player_2' : 'player_1';
+    if (!data?.[otherKey]?.completed) return;
+    if (this._renderedOtherComplete) return;
+    if (this.state.screen !== 'results') return;
+    if (this.state.transitioning) return;
+    if (this._otherPlayerRenderPending) return;
+
+    this._renderedOtherComplete = true;
+    this._otherPlayerRenderPending = true;
+    this.render();
+    requestAnimationFrame(() => {
+      const screen = this.container.querySelector('.screen:not(.active)');
+      if (screen) screen.classList.add('active');
+      this._otherPlayerRenderPending = false;
+    });
   },
 
   // ============================================
